@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>When Do Mid-Latitude Winters Stop Freezing?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<style>
+  :root {
+    --bg: #eef5fb;
+    --card: #ffffff;
+    --ink: #0f2a3d;
+    --muted: #5b7487;
+    --line: #d5e3ee;
+    --ice: #e3f0fa;
+    --ice-strong: #c9e2f5;
+    --frost: #7fb8e3;
+    --hist: #7f97ad;
+    --low: #2f80c9;
+    --high: #d6533c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: linear-gradient(180deg, #e4f0f9 0%, var(--bg) 260px);
+    color: var(--ink); font: 15px/1.5 "IBM Plex Sans", system-ui, sans-serif;
+  }
+  main { max-width: 1040px; margin: 0 auto; padding: 36px 20px 64px; }
+  h1 { font: 600 34px/1.15 "IBM Plex Serif", Georgia, serif; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .dek { color: var(--muted); max-width: 720px; margin: 0 0 24px; font-size: 16px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 22px 22px 14px; margin-bottom: 22px; box-shadow: 0 1px 0 rgba(15,42,61,.03), 0 8px 24px -16px rgba(15,42,61,.25);
+  }
+  .card h2 { margin: 0 0 2px; font-size: 19px; font-weight: 600; }
+  .sub { color: var(--muted); font-size: 13.5px; margin: 0 0 14px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .btn {
+    border: 1px solid var(--line); background: #f6fafd; color: var(--ink); border-radius: 999px;
+    padding: 6px 13px 6px 10px; font: 500 13px "IBM Plex Sans", sans-serif; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 7px; transition: background .15s, border-color .15s;
+  }
+  .btn:hover { border-color: var(--frost); }
+  .btn.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .spacer { flex: 1; }
+  label.check { font-size: 13px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .axis text { fill: var(--muted); font: 12px "IBM Plex Sans", sans-serif; }
+  .axis path, .axis line { stroke: #b9cad8; }
+  .grid line { stroke: #edf3f8; }
+  .grid path { display: none; }
+  .axis-title { fill: var(--muted); font-size: 12.5px; }
+  .note { fill: var(--muted); font-size: 12px; }
+  .slider { display: flex; gap: 12px; align-items: center; font-size: 13.5px; color: var(--muted); margin: 8px 0 4px; flex-wrap: wrap; }
+  .slider input { flex: 1; min-width: 200px; accent-color: var(--low); }
+  .slider b { color: var(--ink); font-size: 15px; min-width: 90px; }
+  .strip-label { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .strip-label b { color: var(--ink); font-weight: 600; }
+  .brush .selection { fill: var(--frost); fill-opacity: .28; stroke: var(--low); stroke-width: 1.5; rx: 4; }
+  .brush .handle { display: none; }
+  .brush .overlay { cursor: pointer; }
+  .tooltip {
+    position: fixed; pointer-events: none; background: rgba(15,42,61,.96); color: #fff;
+    padding: 9px 11px; border-radius: 9px; font-size: 12.5px; line-height: 1.45; opacity: 0;
+    transition: opacity .12s; max-width: 280px; z-index: 10; box-shadow: 0 8px 20px -8px rgba(0,0,0,.4);
+  }
+  .tooltip .yr { font-weight: 600; margin-bottom: 3px; }
+  .tooltip .row { display: flex; gap: 7px; align-items: baseline; }
+  .tooltip .dim { color: #a9c1d3; }
+  .summary { font-size: 15px; margin: 4px 0 8px; }
+  .summary strong { font-weight: 600; }
+  footer { color: var(--muted); font-size: 12.5px; }
+  footer p { margin: 0 0 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>When Do Mid-Latitude Winters Stop Freezing?</h1>
+  <p class="dek">How fast Northern mid-latitude winters warm, how close the average winter gets to 0&nbsp;°C by 2100, and how much cutting emissions changes that.</p>
+
+
+  <section class="card">
+    <h2>How fast are mid-latitude winters warming?</h2>
+    <p class="sub" id="sub1"></p>
+    <svg id="chart1" viewBox="0 0 960 420"></svg>
+  </section>
+
+
+  <footer>
+    <p id="srcNote"></p>
+    <p>Winter = December, January and February (DJF); December counts toward the following year, so “winter 2100” is Dec 2099 – Feb 2100. Each winter is one area-weighted average over the region. Lines are averages of the previous 20 winters. Before 2015 both paths share the model’s historical simulation.</p>
+  </footer>
+</main>
+<div class="tooltip" id="tip"></div>
+
+<script>
+const CONFIG = {
+  csv: "data/winter_djf.csv",
+  region: "Northern mid-latitudes, 30–60°N, land only",
+  source: "CMIP6 · MPI-ESM1-2-LR · r1i1p1f1 · one model, no bias correction",
+  baseline: [1995, 2014],
+  span: 20
+};
+const COLOR = { historical: "#7f97ad", ssp126: "#2f80c9", ssp585: "#d6533c" };
+const NAME = { historical: "Historical simulation", ssp126: "SSP1-2.6", ssp585: "SSP5-8.5" };
+const LONG = { ssp126: "SSP1-2.6 · rapid emissions cuts", ssp585: "SSP5-8.5 · fossil-fuel heavy" };
+const SCEN = ["ssp126", "ssp585"];
+const fmt = d3.format("+.1f"), fmt1 = d3.format(".1f");
+const deg = v => `${v < 0 ? "−" : ""}${fmt1(Math.abs(v))} °C`;
+const sdeg = v => `${v < 0 ? "−" : "+"}${fmt1(Math.abs(v))} °C`;
+const tip = d3.select("#tip");
+
+/* ---------- data shaping ---------- */
+function shape(rows) {
+  const by = d3.group(rows.map(r => ({ year: +r.winter_year, scenario: String(r.scenario).trim().toLowerCase(), t: +r.tas_c }))
+    .filter(r => isFinite(r.year) && isFinite(r.t)), r => r.scenario);
+  const hist = (by.get("historical") || []).sort((a, b) => a.year - b.year);
+  const series = { historical: hist };
+  for (const k of SCEN) {
+    const fut = (by.get(k) || []).filter(r => r.year > d3.max(hist, d => d.year)).sort((a, b) => a.year - b.year);
+    series[k] = hist.concat(fut);          // full record, so rolling means and windows can span 2015
+  }
+  for (const k of Object.keys(series)) {
+    const arr = series[k].map(d => ({ ...d }));   // own copies, so each series keeps its own rolling mean
+    arr.forEach((d, i) => {
+      d.roll = i >= CONFIG.span - 1 ? d3.mean(arr.slice(i - CONFIG.span + 1, i + 1), e => e.t) : null;
+    });
+    series[k] = arr;
+  }
+  const lastHist = d3.max(hist, d => d.year);
+  const firstYear = d3.min(hist, d => d.year), lastYear = d3.max(SCEN.flatMap(k => series[k]), d => d.year);
+  const crossing = {}, firstAbove = {};
+  for (const k of SCEN) {
+    crossing[k] = series[k].find(d => d.year > lastHist && d.roll !== null && d.roll >= 0) || null;
+    firstAbove[k] = series[k].find(d => d.year > lastHist && d.t >= 0) || null;
+  }
+  return { series, lastHist, firstYear, lastYear, crossing, firstAbove };
+}
+
+/* ---------- chart 1 ---------- */
+// Three smoothed lines (20-winter averages), a freezing line, and a shaded band showing the winters picked for chart 2.
+const W = 960, H1 = 420, m1 = { top: 20, right: 210, bottom: 44, left: 58 };
+const PLAIN = { historical: "Past", ssp126: "Cut emissions", ssp585: "Keep burning fossil fuels" };
+let D, x, y1, svg1;
+
+function drawChart1() {
+  svg1 = d3.select("#chart1");
+  const start = D.firstYear + CONFIG.span - 1;
+  x = d3.scaleLinear().domain([start, D.lastYear]).range([m1.left, W - m1.right]);
+  const rolls = Object.values(D.series).flat().filter(d => d.roll !== null).map(d => d.roll);
+  y1 = d3.scaleLinear().domain([Math.min(d3.min(rolls), 0) - .5, Math.max(d3.max(rolls), 0) + 1]).nice()
+    .range([H1 - m1.bottom, m1.top]);
+  const bottom = y1.range()[0];
+
+  svg1.append("g").attr("class", "grid").attr("transform", `translate(${m1.left},0)`)
+    .call(d3.axisLeft(y1).ticks(6).tickSize(-(W - m1.left - m1.right)).tickFormat(""));
+
+  // freezing line
+  svg1.append("line").attr("x1", m1.left).attr("x2", W - m1.right).attr("y1", y1(0)).attr("y2", y1(0))
+    .attr("stroke", "#0f2a3d").attr("stroke-width", 1.3).attr("stroke-dasharray", "5 4");
+  svg1.append("text").attr("x", m1.left + 8).attr("y", y1(0) - 7).style("font-size", "12.5px").style("font-weight", 600)
+    .attr("fill", "#0f2a3d").text("0 °C freezing");
+
+  // "today" divider
+  svg1.append("line").attr("x1", x(D.lastHist)).attr("x2", x(D.lastHist)).attr("y1", m1.top).attr("y2", bottom)
+    .attr("stroke", "#9fb4c5").attr("stroke-dasharray", "2 3");
+  svg1.append("text").attr("class", "note").attr("x", x(D.lastHist) + 6).attr("y", bottom - 8).text("Future →");
+
+  svg1.append("g").attr("class", "axis").attr("transform", `translate(0,${bottom})`)
+    .call(d3.axisBottom(x).ticks(8).tickFormat(d3.format("d")).tickSizeOuter(0));
+  svg1.append("g").attr("class", "axis").attr("transform", `translate(${m1.left},0)`)
+    .call(d3.axisLeft(y1).ticks(6).tickFormat(d => `${d < 0 ? "−" : ""}${Math.abs(d)}°`).tickSizeOuter(0));
+  svg1.append("text").attr("class", "axis-title").attr("transform", `translate(16,${(m1.top + bottom) / 2}) rotate(-90)`)
+    .attr("text-anchor", "middle").text("Winter temperature, °C");
+
+  const line = d3.line().defined(d => d.roll !== null).x(d => x(d.year)).y(d => y1(d.roll)).curve(d3.curveMonotoneX);
+  svg1.append("path").datum(D.series.historical).attr("d", line).attr("fill", "none").attr("stroke", COLOR.historical).attr("stroke-width", 3);
+  for (const k of SCEN) {
+    const data = D.series[k].filter(d => d.year >= D.lastHist);
+    svg1.append("path").datum(data).attr("d", line).attr("fill", "none").attr("stroke", COLOR[k]).attr("stroke-width", 3.5)
+      .attr("stroke-linecap", "round");
+    const last = data[data.length - 1];
+    svg1.append("text").attr("x", x(last.year) + 10).attr("y", y1(last.roll) - 2).attr("fill", COLOR[k])
+      .style("font-size", "13.5px").style("font-weight", 600).text(PLAIN[k]);
+    svg1.append("text").attr("x", x(last.year) + 10).attr("y", y1(last.roll) + 15).attr("fill", COLOR[k])
+      .style("font-size", "12.5px").text(`${deg(last.roll)} by ${last.year}`);
+  }
+  svg1.append("text").attr("x", x(1900)).attr("y", y1(d3.mean(D.series.historical.filter(d => d.roll !== null), d => d.roll)) - 22)
+    .attr("fill", "#5b7487").style("font-size", "13px").style("font-weight", 600).text("Past");
+
+  // hover
+  const hl = svg1.append("line").attr("y1", m1.top).attr("y2", bottom).attr("stroke", "#0f2a3d").attr("stroke-opacity", .3)
+    .style("opacity", 0).style("pointer-events", "none");
+  svg1.append("rect").attr("x", m1.left).attr("y", m1.top).attr("width", W - m1.left - m1.right).attr("height", bottom - m1.top)
+    .attr("fill", "transparent")
+    .on("mousemove", ev => {
+      const yr = Math.round(x.invert(d3.pointer(ev)[0]));
+      hl.attr("x1", x(yr)).attr("x2", x(yr)).style("opacity", 1);
+      const keys = yr <= D.lastHist ? ["historical"] : SCEN;
+      tip.html(`<div class="yr">${yr}</div>` + keys.map(k => {
+        const d = D.series[k].find(e => e.year === yr);
+        return d && d.roll !== null ? `<div class="row"><span class="swatch" style="background:${COLOR[k]}"></span><span>${PLAIN[k]}: <b>${deg(d.roll)}</b></span></div>` : "";
+      }).join("")).style("opacity", 1);
+      placeTip(ev);
+    })
+    .on("mouseleave", () => { hl.style("opacity", 0); tip.style("opacity", 0); });
+}
+
+function placeTip(ev) {
+  const w = tip.node().offsetWidth, h = tip.node().offsetHeight;
+  let lx = ev.clientX + 16, ly = ev.clientY - h - 12;
+  if (lx + w > window.innerWidth - 8) lx = ev.clientX - w - 16;
+  if (ly < 8) ly = ev.clientY + 16;
+  tip.style("left", lx + "px").style("top", ly + "px");
+}
+
+/* ---------- boot ---------- */
+function init(rows) {
+  D = shape(rows);
+  d3.select("#sub1").text(`${CONFIG.region}. Each line is the average of the previous 20 winters. Hover for values.`);
+  d3.select("#srcNote").text(`Data: ${CONFIG.source}. Model output for a region, not station observations.`);
+  drawChart1();
+}
+
+d3.csv(CONFIG.csv)
+  .then(rows => { if (!rows.length) throw new Error("empty"); init(rows); })
+  .catch(err => {
+    console.error(err);
+    d3.select("#chart1").append("text").attr("x", 480).attr("y", 200).attr("text-anchor", "middle")
+      .attr("fill", "#c2462f").text("Couldn't load data/winter_djf.csv. Make sure it's next to index.html.");
+  });
+</script>
+</body>
+</html>
