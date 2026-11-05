@@ -59,8 +59,7 @@
   .strip-label { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .strip-label b { color: var(--ink); font-weight: 600; }
   .brush .selection { fill: var(--frost); fill-opacity: .28; stroke: var(--low); stroke-width: 1.5; rx: 4; }
-  .brush .handle { display: none; }
-  .brush .overlay { cursor: pointer; }
+  .brush .overlay { cursor: crosshair; }
   .tooltip {
     position: fixed; pointer-events: none; background: rgba(15,42,61,.96); color: #fff;
     padding: 9px 11px; border-radius: 9px; font-size: 12.5px; line-height: 1.45; opacity: 0;
@@ -84,13 +83,26 @@
   <section class="card">
     <h2>How fast are mid-latitude winters warming?</h2>
     <p class="sub" id="sub1"></p>
+    <div class="controls">
+      <button class="btn active" data-mode="both"><span class="swatch" style="background:linear-gradient(90deg,var(--low) 50%,var(--high) 50%)"></span>Both futures</button>
+      <button class="btn" data-mode="ssp126"><span class="swatch" style="background:var(--low)"></span>Cut emissions</button>
+      <button class="btn" data-mode="ssp585"><span class="swatch" style="background:var(--high)"></span>Keep burning fossil fuels</button>
+      <span class="spacer"></span>
+      <button class="btn" id="annualBtn"><span class="swatch" style="background:#b9cad8"></span>Show every winter</button>
+    </div>
     <svg id="chart1" viewBox="0 0 960 420"></svg>
+    <svg id="strip" viewBox="0 0 960 58"></svg>
+    <div class="strip-label">
+      <span>Drag across the strip to zoom in on any years.</span>
+      <button class="btn" data-zoom="future">Zoom to 2015–2100</button>
+      <button class="btn" data-zoom="all">Show all years</button>
+    </div>
   </section>
 
 
   <footer>
     <p id="srcNote"></p>
-    <p>Winter = December, January and February (DJF); December counts toward the following year, so “winter 2100” is Dec 2099 – Feb 2100. Each winter is one area-weighted average over the region. Lines are averages of the previous 20 winters. Before 2015 both paths share the model’s historical simulation.</p>
+    <p>Winter = December, January and February (DJF); December counts toward the following year, so “winter 2100” is Dec 2099 – Feb 2100. Each winter is one area-weighted average over the region. Thick lines are averages of the previous 20 winters. Before 2015 both paths share the model’s historical simulation.</p>
   </footer>
 </main>
 <div class="tooltip" id="tip"></div>
@@ -140,22 +152,31 @@ function shape(rows) {
 }
 
 /* ---------- chart 1 ---------- */
-// Three smoothed lines (20-winter averages), a freezing line, and a shaded band showing the winters picked for chart 2.
+// Smoothed lines = average of the previous 20 winters. Optional thin lines = every single winter,
+// with winters that averaged above 0 °C marked. Buttons pick which future to show; the strip zooms in time.
 const W = 960, H1 = 420, m1 = { top: 20, right: 210, bottom: 44, left: 58 };
 const PLAIN = { historical: "Past", ssp126: "Cut emissions", ssp585: "Keep burning fossil fuels" };
-let D, x, y1, svg1;
+const state = { mode: "both", annual: false };
+let D, x, xFull, y1, svg1, G = {};
 
 function drawChart1() {
   svg1 = d3.select("#chart1");
-  const start = D.firstYear + CONFIG.span - 1;
-  x = d3.scaleLinear().domain([start, D.lastYear]).range([m1.left, W - m1.right]);
-  const rolls = Object.values(D.series).flat().filter(d => d.roll !== null).map(d => d.roll);
-  y1 = d3.scaleLinear().domain([Math.min(d3.min(rolls), 0) - .5, Math.max(d3.max(rolls), 0) + 1]).nice()
+  xFull = d3.scaleLinear().domain([D.firstYear, D.lastYear]).range([m1.left, W - m1.right]);
+  x = xFull.copy();
+  const all = Object.values(D.series).flat();
+  y1 = d3.scaleLinear().domain([Math.min(d3.min(all, d => d.t), 0) - .3, Math.max(d3.max(all, d => d.t), 0) + .9]).nice()
     .range([H1 - m1.bottom, m1.top]);
   const bottom = y1.range()[0];
 
+  svg1.append("clipPath").attr("id", "clip1").append("rect").attr("x", m1.left).attr("y", 0)
+    .attr("width", W - m1.left - m1.right).attr("height", H1);
   svg1.append("g").attr("class", "grid").attr("transform", `translate(${m1.left},0)`)
     .call(d3.axisLeft(y1).ticks(6).tickSize(-(W - m1.left - m1.right)).tickFormat(""));
+  G.xAxis = svg1.append("g").attr("class", "axis").attr("transform", `translate(0,${bottom})`);
+  svg1.append("g").attr("class", "axis").attr("transform", `translate(${m1.left},0)`)
+    .call(d3.axisLeft(y1).ticks(6).tickFormat(d => `${d < 0 ? "−" : ""}${Math.abs(d)}°`).tickSizeOuter(0));
+  svg1.append("text").attr("class", "axis-title").attr("transform", `translate(16,${(m1.top + bottom) / 2}) rotate(-90)`)
+    .attr("text-anchor", "middle").text("Winter temperature, °C");
 
   // freezing line
   svg1.append("line").attr("x1", m1.left).attr("x2", W - m1.right).attr("y1", y1(0)).attr("y2", y1(0))
@@ -163,32 +184,36 @@ function drawChart1() {
   svg1.append("text").attr("x", m1.left + 8).attr("y", y1(0) - 7).style("font-size", "12.5px").style("font-weight", 600)
     .attr("fill", "#0f2a3d").text("0 °C freezing");
 
-  // "today" divider
-  svg1.append("line").attr("x1", x(D.lastHist)).attr("x2", x(D.lastHist)).attr("y1", m1.top).attr("y2", bottom)
-    .attr("stroke", "#9fb4c5").attr("stroke-dasharray", "2 3");
-  svg1.append("text").attr("class", "note").attr("x", x(D.lastHist) + 6).attr("y", bottom - 8).text("Future →");
+  const plot = svg1.append("g").attr("clip-path", "url(#clip1)");
+  G.today = plot.append("g");
+  G.today.append("line").attr("y1", m1.top).attr("y2", bottom).attr("stroke", "#9fb4c5").attr("stroke-dasharray", "2 3");
+  G.today.append("text").attr("class", "note").attr("y", bottom - 8).attr("dx", 6).text("Future →");
 
-  svg1.append("g").attr("class", "axis").attr("transform", `translate(0,${bottom})`)
-    .call(d3.axisBottom(x).ticks(8).tickFormat(d3.format("d")).tickSizeOuter(0));
-  svg1.append("g").attr("class", "axis").attr("transform", `translate(${m1.left},0)`)
-    .call(d3.axisLeft(y1).ticks(6).tickFormat(d => `${d < 0 ? "−" : ""}${Math.abs(d)}°`).tickSizeOuter(0));
-  svg1.append("text").attr("class", "axis-title").attr("transform", `translate(16,${(m1.top + bottom) / 2}) rotate(-90)`)
-    .attr("text-anchor", "middle").text("Winter temperature, °C");
+  // every winter (thin) + thawed winters (dots)
+  G.annual = plot.append("g").style("opacity", 0);
+  G.annual.append("path").datum(D.series.historical).attr("class", "aline").attr("stroke", COLOR.historical);
+  for (const k of SCEN) G.annual.append("path").datum(D.series[k].filter(d => d.year >= D.lastHist))
+    .attr("class", `aline s-${k}`).attr("stroke", COLOR[k]);
+  G.annual.selectAll(".aline").attr("fill", "none").attr("stroke-width", 1).attr("opacity", .45);
+  const thawed = SCEN.flatMap(k => D.series[k].filter(d => d.year > D.lastHist && d.t >= 0).map(d => ({ ...d, k })));
+  G.thaw = G.annual.selectAll(".thaw").data(thawed).join("g").attr("class", d => `thaw s-${d.k}`);
+  G.thaw.append("circle").attr("r", 5).attr("fill", d => COLOR[d.k]).attr("stroke", "#fff").attr("stroke-width", 1.5);
+  G.thaw.append("text").attr("y", -10).attr("text-anchor", "middle").style("font-size", "11.5px").style("font-weight", 600)
+    .attr("fill", d => COLOR[d.k]).text(d => d.year);
 
-  const line = d3.line().defined(d => d.roll !== null).x(d => x(d.year)).y(d => y1(d.roll)).curve(d3.curveMonotoneX);
-  svg1.append("path").datum(D.series.historical).attr("d", line).attr("fill", "none").attr("stroke", COLOR.historical).attr("stroke-width", 3);
-  for (const k of SCEN) {
-    const data = D.series[k].filter(d => d.year >= D.lastHist);
-    svg1.append("path").datum(data).attr("d", line).attr("fill", "none").attr("stroke", COLOR[k]).attr("stroke-width", 3.5)
-      .attr("stroke-linecap", "round");
-    const last = data[data.length - 1];
-    svg1.append("text").attr("x", x(last.year) + 10).attr("y", y1(last.roll) - 2).attr("fill", COLOR[k])
-      .style("font-size", "13.5px").style("font-weight", 600).text(PLAIN[k]);
-    svg1.append("text").attr("x", x(last.year) + 10).attr("y", y1(last.roll) + 15).attr("fill", COLOR[k])
-      .style("font-size", "12.5px").text(`${deg(last.roll)} by ${last.year}`);
-  }
-  svg1.append("text").attr("x", x(1900)).attr("y", y1(d3.mean(D.series.historical.filter(d => d.roll !== null), d => d.roll)) - 22)
-    .attr("fill", "#5b7487").style("font-size", "13px").style("font-weight", 600).text("Past");
+  // 20-winter averages
+  G.roll = plot.append("g");
+  G.roll.append("path").datum(D.series.historical).attr("class", "rline").attr("stroke", COLOR.historical).attr("stroke-width", 3);
+  for (const k of SCEN) G.roll.append("path").datum(D.series[k].filter(d => d.year >= D.lastHist))
+    .attr("class", `rline s-${k}`).attr("stroke", COLOR[k]).attr("stroke-width", 3.5);
+  G.roll.selectAll(".rline").attr("fill", "none").attr("stroke-linecap", "round");
+  G.past = plot.append("text").attr("fill", "#5b7487").style("font-size", "13px").style("font-weight", 600).text("Past");
+
+  // end labels
+  G.labels = svg1.selectAll(".elab").data(SCEN).join("g").attr("class", k => `elab s-${k}`);
+  G.labels.append("text").attr("class", "l1").attr("x", 10).attr("y", -2).attr("fill", k => COLOR[k])
+    .style("font-size", "13.5px").style("font-weight", 600).text(k => PLAIN[k]);
+  G.labels.append("text").attr("class", "l2").attr("x", 10).attr("y", 15).attr("fill", k => COLOR[k]).style("font-size", "12.5px");
 
   // hover
   const hl = svg1.append("line").attr("y1", m1.top).attr("y2", bottom).attr("stroke", "#0f2a3d").attr("stroke-opacity", .3)
@@ -198,14 +223,91 @@ function drawChart1() {
     .on("mousemove", ev => {
       const yr = Math.round(x.invert(d3.pointer(ev)[0]));
       hl.attr("x1", x(yr)).attr("x2", x(yr)).style("opacity", 1);
-      const keys = yr <= D.lastHist ? ["historical"] : SCEN;
-      tip.html(`<div class="yr">${yr}</div>` + keys.map(k => {
+      const keys = yr <= D.lastHist ? ["historical"] : SCEN.filter(k => state.mode === "both" || state.mode === k);
+      tip.html(`<div class="yr">Winter ${yr} <span class="dim">· Dec ${yr - 1} – Feb ${yr}</span></div>` + keys.map(k => {
         const d = D.series[k].find(e => e.year === yr);
-        return d && d.roll !== null ? `<div class="row"><span class="swatch" style="background:${COLOR[k]}"></span><span>${PLAIN[k]}: <b>${deg(d.roll)}</b></span></div>` : "";
+        if (!d) return "";
+        return `<div class="row"><span class="swatch" style="background:${COLOR[k]}"></span><span>${PLAIN[k]}: <b>${deg(d.t)}</b>` +
+          (d.t >= 0 ? " · thawed" : "") + (d.roll !== null ? ` <span class="dim">(20-yr avg ${deg(d.roll)})</span>` : "") + `</span></div>`;
       }).join("")).style("opacity", 1);
       placeTip(ev);
     })
     .on("mouseleave", () => { hl.style("opacity", 0); tip.style("opacity", 0); });
+
+  redraw(0);
+}
+
+function redraw(dur) {
+  const t = svg1.transition().duration(dur);
+  const span = x.domain()[1] - x.domain()[0];
+  G.xAxis.transition(t).call(d3.axisBottom(x).ticks(span > 60 ? 8 : 10).tickFormat(d3.format("d")).tickSizeOuter(0));
+  const aline = d3.line().x(d => x(d.year)).y(d => y1(d.t));
+  const rline = d3.line().defined(d => d.roll !== null).x(d => x(d.year)).y(d => y1(d.roll)).curve(d3.curveMonotoneX);
+  G.annual.selectAll(".aline").transition(t).attr("d", aline);
+  G.roll.selectAll(".rline").transition(t).attr("d", rline);
+  G.thaw.transition(t).attr("transform", d => `translate(${x(d.year)},${y1(d.t)})`);
+  G.today.transition(t).attr("transform", `translate(${x(D.lastHist)},0)`);
+
+  const [d0, d1] = x.domain();
+  const hist = D.series.historical.filter(d => d.roll !== null && d.year >= d0 && d.year <= Math.min(d1, D.lastHist));
+  const py = hist.length ? hist[Math.floor(hist.length / 3)] : null;
+  G.past.transition(t).style("opacity", py && x(D.lastHist) - x(py.year) > 40 ? 1 : 0)
+    .attr("x", py ? x(py.year) : 0).attr("y", py ? y1(py.roll) - 22 : 0);
+
+  // end labels sit at the right edge of whatever years are in view
+  const endYear = Math.round(Math.min(d1, D.lastYear));
+  const vals = Object.fromEntries(SCEN.map(k => [k, D.series[k].find(e => e.year === endYear)]));
+  const ys = SCEN.map(k => y1(vals[k].roll));
+  if (Math.abs(ys[0] - ys[1]) < 36) { const mid = (ys[0] + ys[1]) / 2, up = ys[1] < ys[0]; ys[1] = mid + (up ? -18 : 18); ys[0] = mid + (up ? 18 : -18); }
+  G.labels.transition(t).attr("transform", (k, i) => `translate(${W - m1.right},${ys[i]})`)
+    .attr("visibility", endYear > D.lastHist ? "visible" : "hidden");
+  G.labels.select(".l2").text(k => `${deg(vals[k].roll)} in ${endYear}`);
+}
+
+function applyMode() {
+  for (const k of SCEN) {
+    const on = state.mode === "both" || state.mode === k;
+    svg1.selectAll(`.s-${k}`).transition("mode").duration(350).style("opacity", on ? 1 : 0.06);
+  }
+  G.annual.transition("annual").duration(350).style("opacity", state.annual ? 1 : 0);
+  G.roll.transition("annual").duration(350).style("opacity", state.annual ? .85 : 1);
+  d3.selectAll("[data-mode]").classed("active", function () { return this.dataset.mode === state.mode; });
+  d3.select("#annualBtn").classed("active", state.annual);
+  const n = SCEN.flatMap(k => D.series[k].filter(d => d.year > D.lastHist && d.t >= 0 && (state.mode === "both" || state.mode === k))).length;
+  d3.select("#sub1").html(`${CONFIG.region}. Thick lines average the previous 20 winters.` +
+    (state.annual ? ` Thin lines show every winter; <b>${n} projected winter${n === 1 ? "" : "s"}</b> average${n === 1 ? "s" : ""} above freezing (dots).` : " Hover for values."));
+}
+
+/* ---------- zoom strip ---------- */
+let brush, gBrush, sx;
+function drawStrip() {
+  const svg = d3.select("#strip"), h = 58, top = 4, bot = 20;
+  sx = xFull.copy();
+  const rolls = Object.values(D.series).flat().filter(d => d.roll !== null).map(d => d.roll);
+  const sy = d3.scaleLinear().domain(d3.extent(rolls)).range([h - bot - 3, top + 3]);
+  svg.append("rect").attr("x", m1.left).attr("width", W - m1.left - m1.right).attr("y", top).attr("height", h - bot - top)
+    .attr("fill", "#f3f8fc").attr("rx", 6);
+  const rl = d3.line().defined(d => d.roll !== null).x(d => sx(d.year)).y(d => sy(d.roll));
+  svg.append("path").datum(D.series.historical).attr("d", rl).attr("fill", "none").attr("stroke", COLOR.historical).attr("stroke-width", 1.5);
+  for (const k of SCEN) svg.append("path").datum(D.series[k].filter(d => d.year >= D.lastHist)).attr("d", rl)
+    .attr("fill", "none").attr("stroke", COLOR[k]).attr("stroke-width", 1.5);
+  svg.append("g").attr("class", "axis").attr("transform", `translate(0,${h - bot})`)
+    .call(d3.axisBottom(sx).ticks(10).tickFormat(d3.format("d")).tickSize(3).tickSizeOuter(0))
+    .call(g => g.select(".domain").remove());
+  brush = d3.brushX().extent([[m1.left, top], [W - m1.right, h - bot]])
+    .on("end", ev => {
+      if (!ev.sourceEvent) return;
+      if (!ev.selection) { zoomTo(null); return; }
+      const [a, b] = ev.selection.map(sx.invert);
+      if (b - a < 10) { const c = (a + b) / 2; zoomTo([c - 5, c + 5]); } else zoomTo([a, b]);
+    });
+  gBrush = svg.append("g").attr("class", "brush").call(brush);
+}
+function zoomTo(range) {
+  const dom = range ? [Math.max(D.firstYear, range[0]), Math.min(D.lastYear, range[1])] : xFull.domain();
+  x.domain(dom);
+  gBrush.call(brush.move, range ? dom.map(sx) : null);
+  redraw(600);
 }
 
 function placeTip(ev) {
@@ -219,9 +321,11 @@ function placeTip(ev) {
 /* ---------- boot ---------- */
 function init(rows) {
   D = shape(rows);
-  d3.select("#sub1").text(`${CONFIG.region}. Each line is the average of the previous 20 winters. Hover for values.`);
   d3.select("#srcNote").text(`Data: ${CONFIG.source}. Model output for a region, not station observations.`);
-  drawChart1();
+  drawChart1(); drawStrip(); applyMode();
+  d3.selectAll("[data-mode]").on("click", function () { state.mode = this.dataset.mode; applyMode(); });
+  d3.select("#annualBtn").on("click", () => { state.annual = !state.annual; applyMode(); });
+  d3.selectAll("[data-zoom]").on("click", function () { zoomTo(this.dataset.zoom === "future" ? [D.lastHist, D.lastYear] : null); });
 }
 
 d3.csv(CONFIG.csv)
