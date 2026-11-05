@@ -42,6 +42,10 @@
 
         .controls {
             margin-bottom: 15px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
         }
 
         button {
@@ -53,6 +57,7 @@
             cursor: pointer;
             font-weight: 600;
             font-size: 12px;
+            transition: all 0.15s ease;
         }
 
         button.active {
@@ -77,7 +82,7 @@
         }
 
         .tooltip {
-            position: absolute;
+            position: fixed;
             padding: 8px 12px;
             background: rgba(0, 0, 0, 0.85);
             color: #fff;
@@ -86,6 +91,7 @@
             pointer-events: none;
             opacity: 0;
             transition: opacity 0.15s ease-in-out;
+            z-index: 100;
         }
 
         .focus-circle {
@@ -114,6 +120,7 @@
             <button class="filter-btn active" data-scenario="all">Show All Scenarios</button>
             <button class="filter-btn" data-scenario="ssp126">SSP1-2.6 (Mitigation)</button>
             <button class="filter-btn" data-scenario="ssp585">SSP5-8.5 (High Emissions)</button>
+            <button id="annualToggleBtn">Show Every Winter (Annual Detail)</button>
         </div>
         <div id="chart1"></div>
         <div id="tooltip1" class="tooltip"></div>
@@ -126,6 +133,9 @@
     </div>
 
     <script>
+        // ==========================================
+        // CHART 1
+        // ==========================================
         d3.csv("cmip6_winter_compression.csv").then(rawData => {
             rawData.forEach(d => {
                 d.year = +d.year;
@@ -151,11 +161,11 @@
 
             const tooltip1 = d3.select("#tooltip1");
 
-            const xScale1 = d3.scaleLinear()
+            const x1 = d3.scaleLinear()
                 .domain(d3.extent(rawData, d => d.year))
                 .range([0, width1]);
 
-            const yScale1 = d3.scaleLinear()
+            const y1 = d3.scaleLinear()
                 .domain([
                     d3.min(rawData, d => d.winter_mean_temp_c) - 1,
                     d3.max(rawData, d => d.winter_mean_temp_c) + 1
@@ -165,35 +175,49 @@
             svg1.append("g")
                 .attr("class", "axis")
                 .attr("transform", `translate(0, ${height1})`)
-                .call(d3.axisBottom(xScale1).tickFormat(d3.format("d")));
+                .call(d3.axisBottom(x1).tickFormat(d3.format("d")));
 
             svg1.append("g")
                 .attr("class", "axis")
-                .call(d3.axisLeft(yScale1));
+                .call(d3.axisLeft(y1));
 
             svg1.append("line")
                 .attr("x1", 0).attr("x2", width1)
-                .attr("y1", yScale1(0)).attr("y2", yScale1(0))
+                .attr("y1", y1(0)).attr("y2", y1(0))
                 .attr("stroke", "#e53e3e")
                 .attr("stroke-dasharray", "4 4")
                 .attr("stroke-width", 1.5);
 
             const nestedData = d3.groups(rawData, d => d.scenario);
             const lineGen1 = d3.line()
-                .x(d => xScale1(d.year))
-                .y(d => yScale1(d.winter_mean_temp_c))
+                .x(d => x1(d.year))
+                .y(d => y1(d.winter_mean_temp_c))
                 .curve(d3.curveMonotoneX);
 
-            const lineGroups = svg1.selectAll(".line-group")
+            const lineGroups1 = svg1.selectAll(".line-group")
                 .data(nestedData)
                 .enter()
                 .append("g")
                 .attr("class", d => `line-group scenario-${d[0]}`);
 
-            lineGroups.append("path")
+            lineGroups1.append("path")
                 .attr("class", "line")
                 .attr("d", d => lineGen1(d[1]))
                 .attr("stroke", d => colorScale(d[0]));
+
+            const thawedPoints = rawData.filter(d => d.winter_mean_temp_c >= 0);
+            const thawDots = svg1.selectAll(".thaw-dot")
+                .data(thawedPoints)
+                .enter()
+                .append("circle")
+                .attr("class", d => `thaw-dot scenario-${d.scenario}`)
+                .attr("r", 4)
+                .attr("fill", d => colorScale(d.scenario))
+                .attr("stroke", "#fff")
+                .attr("stroke-width", 1)
+                .attr("cx", d => x1(d.year))
+                .attr("cy", d => y1(d.winter_mean_temp_c))
+                .style("opacity", 0);
 
             const focusCircle1 = svg1.append("circle")
                 .attr("r", 5)
@@ -207,23 +231,23 @@
                 .style("pointer-events", "all")
                 .on("mousemove", function (event) {
                     const [mouseX] = d3.pointer(event);
-                    const hoveredYear = Math.round(xScale1.invert(mouseX));
+                    const hoveredYear = Math.round(x1.invert(mouseX));
                     const match = rawData.reduce((prev, curr) =>
                         Math.abs(curr.year - hoveredYear) < Math.abs(prev.year - hoveredYear) ? curr : prev
                     );
 
                     if (match) {
                         focusCircle1
-                            .attr("cx", xScale1(match.year))
-                            .attr("cy", yScale1(match.winter_mean_temp_c))
+                            .attr("cx", x1(match.year))
+                            .attr("cy", y1(match.winter_mean_temp_c))
                             .attr("stroke", colorScale(match.scenario))
                             .style("opacity", 1);
 
                         tooltip1
                             .style("opacity", 1)
-                            .style("left", `${event.pageX + 15}px`)
-                            .style("top", `${event.pageY - 28}px`)
-                            .html(`<strong>Year:</strong> ${match.year}<br/><strong>Scenario:</strong> ${match.scenario.toUpperCase()}<br/><strong>Temp:</strong> ${match.winter_mean_temp_c}°C`);
+                            .style("left", `${event.clientX + 15}px`)
+                            .style("top", `${event.clientY - 28}px`)
+                            .html(`<strong>Year:</strong> ${match.year}<br/><strong>Scenario:</strong> ${match.scenario.toUpperCase()}<br/><strong>Temp:</strong> ${match.winter_mean_temp_c.toFixed(2)}°C`);
                     }
                 })
                 .on("mouseout", function () {
@@ -245,11 +269,22 @@
                 }
             });
 
+            let showAnnualDots = false;
+            d3.select("#annualToggleBtn").on("click", function () {
+                showAnnualDots = !showAnnualDots;
+                d3.select(this).classed("active", showAnnualDots);
+                thawDots.transition().duration(250).style("opacity", showAnnualDots ? 1 : 0);
+            });
+
         }).catch(err => {
             console.error(err);
             d3.select("#error-log").text("Chart 1 Error: " + err.message);
         });
 
+
+        // ==========================================
+        // CHART 2
+        // ==========================================
         d3.csv("cmip6_global_temp_trends.csv").then(rawData => {
             const historicalData = rawData
                 .filter(d => d.scenario === 'historical')
@@ -273,11 +308,11 @@
 
             const tooltip2 = d3.select("#tooltip2");
 
-            const xScale2 = d3.scaleLinear()
+            const x2 = d3.scaleLinear()
                 .domain(d3.extent(historicalData, d => d.year))
                 .range([0, width2]);
 
-            const yScale2 = d3.scaleLinear()
+            const y2 = d3.scaleLinear()
                 .domain([
                     d3.min(historicalData, d => d.mean_temp_celsius) - 0.5,
                     d3.max(historicalData, d => d.mean_temp_celsius) + 0.5
@@ -287,15 +322,15 @@
             svg2.append("g")
                 .attr("class", "axis")
                 .attr("transform", `translate(0, ${height2})`)
-                .call(d3.axisBottom(xScale2).tickFormat(d3.format("d")));
+                .call(d3.axisBottom(x2).tickFormat(d3.format("d")));
 
             svg2.append("g")
                 .attr("class", "axis")
-                .call(d3.axisLeft(yScale2));
+                .call(d3.axisLeft(y2));
 
             const lineGen2 = d3.line()
-                .x(d => xScale2(d.year))
-                .y(d => yScale2(d.mean_temp_celsius))
+                .x(d => x2(d.year))
+                .y(d => y2(d.mean_temp_celsius))
                 .curve(d3.curveMonotoneX);
 
             svg2.append("path")
@@ -317,22 +352,22 @@
                 .style("pointer-events", "all")
                 .on("mousemove", function (event) {
                     const [mouseX] = d3.pointer(event);
-                    const hoveredYear = Math.round(xScale2.invert(mouseX));
+                    const hoveredYear = Math.round(x2.invert(mouseX));
                     const match = historicalData.reduce((prev, curr) =>
                         Math.abs(curr.year - hoveredYear) < Math.abs(prev.year - hoveredYear) ? curr : prev
                     );
 
                     if (match) {
                         focusCircle2
-                            .attr("cx", xScale2(match.year))
-                            .attr("cy", yScale2(match.mean_temp_celsius))
+                            .attr("cx", x2(match.year))
+                            .attr("cy", y2(match.mean_temp_celsius))
                             .style("opacity", 1);
 
                         tooltip2
                             .style("opacity", 1)
-                            .style("left", `${event.pageX + 15}px`)
-                            .style("top", `${event.pageY - 28}px`)
-                            .html(`<strong>Year:</strong> ${match.year}<br/><strong>Temp:</strong> ${match.mean_temp_celsius}°C`);
+                            .style("left", `${event.clientX + 15}px`)
+                            .style("top", `${event.clientY - 28}px`)
+                            .html(`<strong>Year:</strong> ${match.year}<br/><strong>Temp:</strong> ${match.mean_temp_celsius.toFixed(2)}°C`);
                     }
                 })
                 .on("mouseout", function () {
