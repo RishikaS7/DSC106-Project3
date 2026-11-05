@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Winter's Retreat - D3 Visualizations</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 30px;
+            background-color: #f7f8fa;
+            color: #333;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        p.subtitle {
+            color: #666;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        .chart-box {
+            background: #fff;
+            padding: 25px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            position: relative;
+        }
+
+        h3 {
+            margin-top: 0;
+            font-size: 16px;
+            color: #1a202c;
+        }
+
+        .controls {
+            margin-bottom: 15px;
+        }
+
+        button {
+            padding: 6px 12px;
+            margin-right: 6px;
+            border: 1px solid #cbd5e0;
+            border-radius: 4px;
+            background: #fff;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        button.active {
+            background: #2b6cb0;
+            color: #fff;
+            border-color: #2b6cb0;
+        }
+
+        .line {
+            fill: none;
+            stroke-width: 2.5px;
+        }
+
+        .axis text {
+            font-size: 11px;
+            fill: #4a5568;
+        }
+
+        .axis path,
+        .axis line {
+            stroke: #cbd5e0;
+        }
+
+        .tooltip {
+            position: absolute;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s ease-in-out;
+        }
+
+        .focus-circle {
+            fill: #fff;
+            stroke-width: 2.5px;
+        }
+
+        #error-log {
+            color: red;
+            font-weight: bold;
+            padding: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Winter’s Retreat: Seasonality Shift (40°N–70°N)</h1>
+    <p class="subtitle">DSC 106 Project 3 Interactive Visualization</p>
+
+    <div id="error-log"></div>
+
+    <!-- CHART 1 -->
+    <div class="chart-box">
+        <h3>Chart 1: Mid-Latitude Winter Mean Temperature Projections (1850–2100)</h3>
+        <div class="controls">
+            <button class="filter-btn active" data-scenario="all">Show All Scenarios</button>
+            <button class="filter-btn" data-scenario="ssp126">SSP1-2.6 (Mitigation)</button>
+            <button class="filter-btn" data-scenario="ssp585">SSP5-8.5 (High Emissions)</button>
+        </div>
+        <div id="chart1"></div>
+        <div id="tooltip1" class="tooltip"></div>
+    </div>
+
+    <!-- CHART 2 -->
+    <div class="chart-box">
+        <h3>Chart 2: Mid-Latitude Historical Mean Temperature (1850–2014)</h3>
+        <div id="chart2"></div>
+        <div id="tooltip2" class="tooltip"></div>
+    </div>
+
+    <script>
+        // ==========================================
+        // LOAD CHART 1 (cmip6_winter_compression.csv)
+        // ==========================================
+        d3.csv("cmip6_winter_compression.csv").then(rawData => {
+            rawData.forEach(d => {
+                d.year = +d.year;
+                d.winter_mean_temp_c = +d.winter_mean_temp_c;
+            });
+
+            rawData.sort((a, b) => a.year - b.year);
+
+            const colorScale = d3.scaleOrdinal()
+                .domain(["historical", "ssp126", "ssp585"])
+                .range(["#4a5568", "#2b6cb0", "#c53030"]);
+
+            const margin1 = { top: 20, right: 30, bottom: 40, left: 60 };
+            const width1 = 800 - margin1.left - margin1.right;
+            const height1 = 380 - margin1.top - margin1.bottom;
+
+            const svg1 = d3.select("#chart1")
+                .append("svg")
+                .attr("width", width1 + margin1.left + margin1.right)
+                .attr("height", height1 + margin1.top + margin1.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin1.left},${margin1.top})`);
+
+            const tooltip1 = d3.select("#tooltip1");
+
+            const xScale1 = d3.scaleLinear()
+                .domain(d3.extent(rawData, d => d.year))
+                .range([0, width1]);
+
+            const yScale1 = d3.scaleLinear()
+                .domain([
+                    d3.min(rawData, d => d.winter_mean_temp_c) - 1,
+                    d3.max(rawData, d => d.winter_mean_temp_c) + 1
+                ])
+                .range([height1, 0]);
+
+            svg1.append("g")
+                .attr("class", "axis")
+                .attr("transform", `translate(0, ${height1})`)
+                .call(d3.axisBottom(xScale1).tickFormat(d3.format("d")));
+
+            svg1.append("g")
+                .attr("class", "axis")
+                .call(d3.axisLeft(yScale1));
+
+            // 0°C Threshold Line
+            svg1.append("line")
+                .attr("x1", 0).attr("x2", width1)
+                .attr("y1", yScale1(0)).attr("y2", yScale1(0))
+                .attr("stroke", "#e53e3e")
+                .attr("stroke-dasharray", "4 4")
+                .attr("stroke-width", 1.5);
+
+            const nestedData = d3.groups(rawData, d => d.scenario);
+            const lineGen1 = d3.line()
+                .x(d => xScale1(d.year))
+                .y(d => yScale1(d.winter_mean_temp_c))
+                .curve(d3.curveMonotoneX);
+
+            const lineGroups = svg1.selectAll(".line-group")
+                .data(nestedData)
+                .enter()
+                .append("g")
+                .attr("class", d => `line-group scenario-${d[0]}`);
+
+            lineGroups.append("path")
+                .attr("class", "line")
+                .attr("d", d => lineGen1(d[1]))
+                .attr("stroke", d => colorScale(d[0]));
+
+            const focusCircle1 = svg1.append("circle")
+                .attr("r", 5)
+                .attr("class", "focus-circle")
+                .style("opacity", 0);
+
+            svg1.append("rect")
+                .attr("width", width1)
+                .attr("height", height1)
+                .style("fill", "none")
+                .style("pointer-events", "all")
+                .on("mousemove", function (event) {
+                    const [mouseX] = d3.pointer(event);
+                    const hoveredYear = Math.round(xScale1.invert(mouseX));
+                    const match = rawData.reduce((prev, curr) =>
+                        Math.abs(curr.year - hoveredYear) < Math.abs(prev.year - hoveredYear) ? curr : prev
+                    );
+
+                    if (match) {
+                        focusCircle1
+                            .attr("cx", xScale1(match.year))
+                            .attr("cy", yScale1(match.winter_mean_temp_c))
+                            .attr("stroke", colorScale(match.scenario))
+                            .style("opacity", 1);
+
+                        tooltip1
+                            .style("opacity", 1)
+                            .style("left", `${event.pageX + 15}px`)
+                            .style("top", `${event.pageY - 28}px`)
+                            .html(`<strong>Year:</strong> ${match.year}<br/><strong>Scenario:</strong> ${match.scenario.toUpperCase()}<br/><strong>Temp:</strong> ${match.winter_mean_temp_c}°C`);
+                    }
+                })
+                .on("mouseout", function () {
+                    focusCircle1.style("opacity", 0);
+                    tooltip1.style("opacity", 0);
+                });
+
+            // Filter Buttons
+            d3.selectAll(".filter-btn").on("click", function () {
+                const selected = d3.select(this).attr("data-scenario");
+                d3.selectAll(".filter-btn").classed("active", false);
+                d3.select(this).classed("active", true);
+
+                if (selected === "all") {
+                    svg1.selectAll(".line-group").transition().duration(300).style("opacity", 1);
+                } else {
+                    svg1.selectAll(".line-group").transition().duration(300).style("opacity", 0.15);
+                    svg1.selectAll(`.scenario-${selected}`).transition().duration(300).style("opacity", 1);
+                    svg1.selectAll(".scenario-historical").transition().duration(300).style("opacity", 1);
+                }
+            });
+
+        }).catch(err => {
+            console.error(err);
+            d3.select("#error-log").text("Chart 1 Error: " + err.message);
+        });
+
+
+        // ==========================================
+        // LOAD CHART 2 (cmip6_global_temp_trends.csv)
+        // ==========================================
+        d3.csv("cmip6_global_temp_trends.csv").then(rawData => {
+            const historicalData = rawData
+                .filter(d => d.scenario === 'historical')
+                .map(d => ({
+                    year: +d.year,
+                    mean_temp_celsius: +d.mean_temp_celsius
+                }));
+
+            historicalData.sort((a, b) => a.year - b.year);
+
+            const margin2 = { top: 20, right: 30, bottom: 40, left: 60 };
+            const width2 = 800 - margin2.left - margin2.right;
+            const height2 = 380 - margin2.top - margin2.bottom;
+
+            const svg2 = d3.select("#chart2")
+                .append("svg")
+                .attr("width", width2 + margin2.left + margin2.right)
+                .attr("height", height2 + margin2.top + margin2.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin2.left},${margin2.top})`);
+
+            const tooltip2 = d3.select("#tooltip2");
+
+            const xScale2 = d3.scaleLinear()
+                .domain(d3.extent(historicalData, d => d.year))
+                .range([0, width2]);
+
+            const yScale2 = d3.scaleLinear()
+                .domain([
+                    d3.min(historicalData, d => d.mean_temp_celsius) - 0.5,
+                    d3.max(historicalData, d => d.mean_temp_celsius) + 0.5
+                ])
+                .range([height2, 0]);
+
+            svg2.append("g")
+                .attr("class", "axis")
+                .attr("transform", `translate(0, ${height2})`)
+                .call(d3.axisBottom(xScale2).tickFormat(d3.format("d")));
+
+            svg2.append("g")
+                .attr("class", "axis")
+                .call(d3.axisLeft(yScale2));
+
+            const lineGen2 = d3.line()
+                .x(d => xScale2(d.year))
+                .y(d => yScale2(d.mean_temp_celsius))
+                .curve(d3.curveMonotoneX);
+
+            svg2.append("path")
+                .datum(historicalData)
+                .attr("class", "line")
+                .attr("d", lineGen2)
+                .attr("stroke", "#4a5568");
+
+            const focusCircle2 = svg2.append("circle")
+                .attr("r", 5)
+                .attr("class", "focus-circle")
+                .attr("stroke", "#4a5568")
+                .style("opacity", 0);
+
+            svg2.append("rect")
+                .attr("width", width2)
+                .attr("height", height2)
+                .style("fill", "none")
+                .style("pointer-events", "all")
+                .on("mousemove", function (event) {
+                    const [mouseX] = d3.pointer(event);
+                    const hoveredYear = Math.round(xScale2.invert(mouseX));
+                    const match = historicalData.reduce((prev, curr) =>
+                        Math.abs(curr.year - hoveredYear) < Math.abs(prev.year - hoveredYear) ? curr : prev
+                    );
+
+                    if (match) {
+                        focusCircle2
+                            .attr("cx", xScale2(match.year))
+                            .attr("cy", yScale2(match.mean_temp_celsius))
+                            .style("opacity", 1);
+
+                        tooltip2
+                            .style("opacity", 1)
+                            .style("left", `${event.pageX + 15}px`)
+                            .style("top", `${event.pageY - 28}px`)
+                            .html(`<strong>Year:</strong> ${match.year}<br/><strong>Temp:</strong> ${match.mean_temp_celsius}°C`);
+                    }
+                })
+                .on("mouseout", function () {
+                    focusCircle2.style("opacity", 0);
+                    tooltip2.style("opacity", 0);
+                });
+
+        }).catch(err => {
+            console.error(err);
+            d3.select("#error-log").text("Chart 2 Error: " + err.message);
+        });
+    </script>
+</body>
+
+</html>
