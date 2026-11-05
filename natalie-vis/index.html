@@ -108,7 +108,6 @@
 
     <div id="error-log"></div>
 
-    <!-- CHART 1 -->
     <div class="chart-box">
         <h3>Chart 1: Mid-Latitude Winter Mean Temperature Projections (1850–2100)</h3>
         <div class="controls">
@@ -120,7 +119,6 @@
         <div id="tooltip1" class="tooltip"></div>
     </div>
 
-    <!-- CHART 2 -->
     <div class="chart-box">
         <h3>Chart 2: Mid-Latitude Historical Mean Temperature (1850–2014)</h3>
         <div id="chart2"></div>
@@ -128,9 +126,6 @@
     </div>
 
     <script>
-        // ==========================================
-        // LOAD CHART 1 (cmip6_winter_compression.csv)
-        // ==========================================
         d3.csv("cmip6_winter_compression.csv").then(rawData => {
             rawData.forEach(d => {
                 d.year = +d.year;
@@ -176,7 +171,6 @@
                 .attr("class", "axis")
                 .call(d3.axisLeft(yScale1));
 
-            // 0°C Threshold Line
             svg1.append("line")
                 .attr("x1", 0).attr("x2", width1)
                 .attr("y1", yScale1(0)).attr("y2", yScale1(0))
@@ -237,7 +231,6 @@
                     tooltip1.style("opacity", 0);
                 });
 
-            // Filter Buttons
             d3.selectAll(".filter-btn").on("click", function () {
                 const selected = d3.select(this).attr("data-scenario");
                 d3.selectAll(".filter-btn").classed("active", false);
@@ -257,10 +250,6 @@
             d3.select("#error-log").text("Chart 1 Error: " + err.message);
         });
 
-
-        // ==========================================
-        // LOAD CHART 2 (cmip6_global_temp_trends.csv)
-        // ==========================================
         d3.csv("cmip6_global_temp_trends.csv").then(rawData => {
             const historicalData = rawData
                 .filter(d => d.scenario === 'historical')
