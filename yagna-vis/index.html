@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Interactive CMIP6 winter temperature change heatmap." />
+  <title>CMIP6 | Winter Temperature Change</title>
+  <script src="https://cdn.plot.ly/plotly-3.1.0.min.js" defer></script>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f5f8fc; color: #1e3045; }
+    main { max-width: 1120px; margin: 42px auto; padding: 0 18px; }
+    header { margin-bottom: 20px; }
+    .eyebrow { color: #466b88; font-size: .82rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { font-size: clamp(1.5rem, 3.2vw, 2.3rem); margin: 8px 0 10px; }
+    .intro { color: #53677b; line-height: 1.6; margin: 0; }
+    .panel { background: white; border: 1px solid #e0e7f0; border-radius: 16px; box-shadow: 0 8px 24px rgba(25,50,80,.06); padding: 10px; }
+    #heatmap { width: 100%; height: min(550px, 68vw); min-height: 360px; }
+    #status { text-align: center; padding: 16px; color: #53677b; }
+    .footnote { color: #586d81; font-size: .92rem; line-height: 1.65; margin-top: 16px; }
+    code { background: #eaf0f7; padding: 2px 5px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">CMIP6 · Exploratory data analysis</div>
+      <h1>Projected Changes in Winter Temperature</h1>
+      <p class="intro">Explore the difference in average December–February temperatures between 2041–2060 and 1995–2014 under SSP2-4.5.</p>
+    </header>
+    <section class="panel" aria-label="Interactive winter temperature heatmap">
+      <div id="heatmap" role="img" aria-label="Interactive heatmap of projected changes in average winter temperature by latitude and longitude"></div>
+      <p id="status" role="status">Loading CMIP6 heatmap…</p>
+    </section>
+    <p class="footnote"><strong>Data:</strong> CMIP6, ACCESS-CM2, ensemble <code>r1i1p1f1</code>, native grid <code>gn</code>. Positive values indicate warming relative to the historical baseline. This visualization uses the same plotted data, colors, and title as the project notebook; it does not fetch climate data at runtime.</p>
+  </main>
+  <script>
+    window.addEventListener('DOMContentLoaded', async () => {
+      const status = document.getElementById('status');
+      try {
+        const response = await fetch('./data/winter_temperature_plot.json');
+        if (!response.ok) throw new Error(`HTTP ${response.status} while loading data`);
+        const figure = await response.json();
+        if (!window.Plotly) throw new Error('Plotly could not load from its CDN');
+        // Preserve the notebook's title, colorscale, range, axes and underlying grid.
+        // Only adapt the fixed notebook width for responsive browser display.
+        const layout = { ...figure.layout, autosize: true, width: undefined, height: 550 };
+        await Plotly.newPlot('heatmap', figure.data, layout, {
+          ...figure.config,
+          responsive: true,
+          displaylogo: false
+        });
+        status.remove();
+      } catch (error) {
+        status.textContent = `Could not load the heatmap: ${error.message}. Serve this folder using a local web server or GitHub Pages (not file://).`;
+        console.error(error);
+      }
+    });
+  </script>
+</body>
+</html>
