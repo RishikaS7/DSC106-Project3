@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Winter's Retreat · DSC 106 Project 3</title>
+<link rel="stylesheet" href="site/style.css">
+<script defer src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script defer src="site/natalie.js"></script>
+<script defer src="marcus-vis/data.js"></script>
+<script defer src="marcus-vis/app.js"></script>
+<script defer src="site/rishika.js"></script>
+<script defer src="https://cdn.plot.ly/plotly-3.1.0.min.js"></script>
+<script defer src="site/yagna.js"></script>
+</head>
+<body>
+
+<header class="page-head">
+  <p class="eyebrow">DSC 106 · Project 3 · CMIP6</p>
+  <h1>Future Winter's</h1>
+  <p>Six views of how winter could change, starting with the whole planet and narrowing down to the winters of a single lifetime.</p>
+  <p class="small">The charts don't all use the same model, scenario or region, so check the note on each one before comparing numbers between them.</p>
+</header>
+
+<nav class="jump" aria-label="Jump to a chart">
+  <ol>
+    <li><a href="#world">1 · World map</a></li>
+    <li><a href="#midlat">2 · Mid-latitudes</a></li>
+    <li><a href="#seasons">3 · Winter vs. Summer</a></li>
+    <li><a href="#places">4 · Six places</a></li>
+    <li><a href="#emissions">5 · Emissions</a></li>
+    <li><a href="#lifetime">6 · Your Winters</a></li>
+  </ol>
+</nav>
+
+<main>
+  <noscript>This page needs JavaScript to draw its charts.</noscript>
+  <div id="error-log"></div>
+  <p id="error" role="alert" hidden></p>
+
+  <!-- 1. Yagna -->
+  <section class="vis" id="world" aria-labelledby="world-title">
+    <div class="eyebrow">1 · Yagna</div>
+    <h2 id="world-title">Projected Changes in Winter Temperature</h2>
+    <p>Explore the difference in average December–February temperatures between 2041–2060 and 1995–2014 under SSP2-4.5.</p>
+    <div id="heatmap" role="img" aria-label="Interactive heatmap of projected changes in average winter temperature by latitude and longitude"></div>
+    <p id="status" role="status">Loading CMIP6 heatmap…</p>
+    <p class="note"><strong>Data:</strong> CMIP6, ACCESS-CM2, ensemble <code>r1i1p1f1</code>, native grid <code>gn</code>. Positive values indicate warming relative to the historical baseline.</p>
+  </section>
+
+  <!-- 2. Natalie -->
+  <section class="vis v-natalie" id="midlat" aria-labelledby="midlat-title">
+    <div class="eyebrow">2 · Natalie</div>
+    <h2 id="midlat-title">Mid-Latitude Winter Mean Temperature Projections (1850–2100)</h2>
+    <p class="note">Winter's retreat across 40°N–70°N. The dashed red line marks 0°C.</p>
+    <div class="controls">
+      <button class="filter-btn active" data-scenario="all">Show All Scenarios</button>
+      <button class="filter-btn" data-scenario="ssp126">SSP1-2.6 (Mitigation)</button>
+      <button class="filter-btn" data-scenario="ssp585">SSP5-8.5 (High Emissions)</button>
+      <button id="annualToggleBtn">Show Every Winter (Annual Detail)</button>
+      <button id="zoomBtn">Zoom to Projections (2015–2100)</button>
+    </div>
+    <div id="chart1"></div>
+    <div id="tooltip1" class="tooltip"></div>
+  </section>
+
+  <!-- 3. Natalie -->
+  <section class="vis v-natalie" id="seasons" aria-labelledby="seasons-title">
+    <div class="eyebrow">3 · Natalie</div>
+    <h2 id="seasons-title">Seasonal Warming Differential (Winter DJF vs. Summer JJA)</h2>
+    <p class="note">Comparing seasonal warming rates in Northern mid-latitudes to demonstrate winter-amplified warming trends.</p>
+    <div class="controls">
+      <button class="season-btn active" data-season="both">Compare Both Seasons</button>
+      <button class="season-btn" data-season="winter">Winter (DJF)</button>
+      <button class="season-btn" data-season="summer">Summer (JJA)</button>
+    </div>
+    <div id="chart2"></div>
+    <div id="tooltip2" class="tooltip"></div>
+  </section>
+
+  <!-- 4. Marcus -->
+  <section class="vis v-marcus" id="places" aria-labelledby="title1">
+    <div class="eyebrow">4 · Marcus</div>
+    <h2 id="title1">Different Climates, a Shared Warming Threat</h2>
+    <p>Six illustrative locations, not a representative sample of all mid-latitudes. Select one to compare emissions pathways directly.</p>
+    <div class="controls">
+      <label>Location <select id="location"><option value="all">All six locations</option><option value="london">London</option><option value="berlin">Berlin</option><option value="minneapolis">Minneapolis</option><option value="montreal">Montreal</option><option value="beijing">Beijing</option><option value="sapporo">Sapporo</option></select></label>
+      <label>Pathway <select id="scenario"><option value="ssp585">SSP5-8.5 · very high emissions</option><option value="ssp126">SSP1-2.6 · lower emissions</option><option value="both">Compare both (single location)</option></select></label>
+      <label>Measure <select id="measure"><option value="smooth">Trailing 20-winter mean</option><option value="annual">Individual winter average</option></select></label>
+      <label class="check"><input id="future" type="checkbox"> Focus on 2015–2100</label>
+    </div>
+    <p id="chart-context" class="hint"></p>
+    <div class="chart-scroll"><svg id="trajectory" viewBox="0 0 1100 590" role="img" aria-labelledby="title1 chart-context"></svg></div>
+    <label class="year-control">Inspect winter year <input id="year" type="range" min="1970" max="2100" value="2100"><output id="year-label">2100</output></label>
+    <div id="readout" class="readout" aria-live="polite"></div>
+    <details><summary>What this chart tells us</summary><p>This graph compares winter temperatures in six places with different climates. Under SSP5-8.5 all six warm in this simulation, but London, Berlin and Sapporo already have positive 20-winter means in 2014, while Beijing, Minneapolis and Montreal remain below zero in that mean through 2100. The lines describe nearby model cells, not city observations.</p></details>
+  </section>
+
+  <!-- 5. Marcus -->
+  <section class="vis v-marcus" id="emissions" aria-labelledby="title2">
+    <div class="eyebrow">5 · Marcus</div>
+    <h2 id="title2">Different Emissions, Different Winter Futures</h2>
+    <p>Change in mean winter temperature: <strong>2081–2100 minus 1995–2014.</strong> These are increases, not actual temperatures.</p>
+    <div class="controls"><label>Order locations <select id="sort"><option value="geographic">Original order</option><option value="gap">Largest scenario difference first</option></select></label></div>
+    <div class="legend"><span><i style="background:#187b9d"></i> SSP1-2.6 · lower emissions</span><span><i style="background:#d34b36"></i> SSP5-8.5 · very high emissions</span></div>
+    <div class="chart-scroll"><svg id="magnitude" viewBox="0 0 1100 540" role="img" aria-labelledby="title2"></svg></div>
+    <p id="comparison" class="readout" aria-live="polite">Hover over or Tab to a location's dots for exact changes and the scenario difference.</p>
+    <details><summary>What this chart tells us</summary><p>Every location shows less late-century warming under lower emissions in this simulation. Montreal warms by about 2.5°C under SSP1-2.6 compared with 6.9°C under SSP5-8.5. The gap compares two possible pathways; it does not quantify uncertainty across climate models or guarantee a specific outcome.</p></details>
+  </section>
+
+  <div class="reading">
+    <h3>Reading charts 4 and 5 carefully</h3>
+    <p>MPI-ESM1-2-LR · r1i1p1f1 · native grid · one simulation per pathway.</p>
+    <p>Winter = December–February, weighted by calendar month length. December belongs to the following winter year. Winter 2015 combines historical December 2014 with scenario January–February 2015. A trailing mean is labeled at its final year: 2100 represents 2081–2100. Early projected means include historical winters.</p>
+    <p>The freezing reference is 0°C / 32°F. An average above freezing does not mean freezing days, frost or snow disappear. No future first upward crossing of the trailing 20-winter mean occurs in these six cells during 2015–2100.</p>
+    <p>Nearest native grid cells, no bias correction or land masking. Sapporo's coarse coastal cell may poorly represent the city. One model and member cannot quantify model uncertainty. Historical values are shared across scenarios and are drawn once.</p>
+    <p><a href="https://pangeo-data.github.io/pangeo-cmip6-cloud/accessing_data.html">Pangeo CMIP6 source documentation</a> · <a href="marcus-vis/README.md">Files and reproducibility</a></p>
+  </div>
+
+  <!-- 6. Rishika -->
+  <section class="vis v-rishika" id="lifetime" aria-labelledby="lifetime-title">
+    <div class="eyebrow">6 · Rishika</div>
+    <h2 id="lifetime-title">Will You Still Know Winter?</h2>
+    <p>Pick the year you were born. We compare the winters of your childhood with the winters you would live through at age 60–79, and count how many feel like nothing you grew up with.</p>
+    <div class="controls">
+      <div class="born">
+        <label for="born">I was born in</label>
+        <input type="range" id="born" min="1950" max="2030" step="1" value="2005">
+        <output id="bornOut">2005</output>
+      </div>
+      <div class="seg" id="seg">
+        <button data-k="ssp585" class="active"><span class="swatch" style="background:var(--warm)"></span>Keep burning fossil fuels</button>
+        <button data-k="ssp126"><span class="swatch" style="background:var(--cold)"></span>Cut emissions</button>
+      </div>
+    </div>
+    <p class="summary" id="summary"></p>
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--band);border:1px solid #a9cbe6"></span>Range of your childhood winters (age 5–14)</span>
+      <span><span class="swatch" style="background:var(--warm)"></span>Warmer than any winter of your childhood</span>
+      <span><span class="swatch" style="background:var(--same)"></span>Within your childhood range</span>
+      <span><span class="swatch" style="background:var(--cold)"></span>Colder than any</span>
+    </div>
+    <svg id="chart" viewBox="0 0 960 430"></svg>
+    <p class="note">Data: CMIP6 · MPI-ESM1-2-LR · r1i1p1f1. Each dot is one winter (December–February), averaged over Northern mid-latitude land, 30–60°N. Before 2015 the dots are the model’s historical simulation; after that they follow the scenario you pick. One model, no bias correction: this is a regional average, not the weather in any one town.</p>
+  </section>
+</main>
+
+<div id="tooltip" role="tooltip" hidden></div>
+<div class="tip" id="tip"></div>
+</body>
+</html>
