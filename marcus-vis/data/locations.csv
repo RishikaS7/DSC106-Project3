@@ -1,0 +1,7 @@
+region_id,name,winter_climate,target_lat,target_lon,grid_lat,grid_lon
+london,London region,maritime,51.51,-0.13,51.29437713895115,0.0
+berlin,Berlin region,transitional continental,52.52,13.4,53.15959537001968,13.125
+minneapolis,Minneapolis region,cold continental,44.98,-93.27,45.698693877701785,-93.75
+montreal,Montreal region,cold continental,45.5,-73.57,45.698693877701785,-73.125
+beijing,Beijing region,continental monsoon,39.9,116.41,40.1029793042494,116.25
+sapporo,Sapporo region,snowy maritime continental,43.06,141.35,43.83345857895126,140.625
