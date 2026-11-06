@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Winter Futures · Marcus's CMIP6 Explorations</title>
+<link rel="stylesheet" href="style.css">
+<script defer src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script defer src="data.js"></script><script defer src="app.js"></script>
+</head>
+<body><main>
+<header><p class="eyebrow">DSC 106 / CMIP6 EXPLORATIONS</p><h1>Winter looks different.<br>Warming reaches all six places.</h1><p class="intro">Explore contrasting winter climates across North America, Europe and East Asia, then compare what two emissions pathways could mean for their future.</p><p class="model">MPI-ESM1-2-LR · r1i1p1f1 · native grid · one simulation per pathway</p></header>
+<p id="error" role="alert" hidden></p><noscript>This page needs JavaScript to draw its D3 charts.</noscript>
+<section aria-labelledby="title1"><div class="section-number">01 / TEMPERATURE THROUGH TIME</div><h2 id="title1">Different Climates, a Shared Warming Threat</h2>
+<p>Six illustrative locations, not a representative sample of all mid-latitudes. Select one to compare emissions pathways directly.</p>
+<div class="controls"><label>Location <select id="location"><option value="all">All six locations</option><option value="london">London</option><option value="berlin">Berlin</option><option value="minneapolis">Minneapolis</option><option value="montreal">Montreal</option><option value="beijing">Beijing</option><option value="sapporo">Sapporo</option></select></label>
+<label>Pathway <select id="scenario"><option value="ssp585">SSP5-8.5 · very high emissions</option><option value="ssp126">SSP1-2.6 · lower emissions</option><option value="both">Compare both (single location)</option></select></label>
+<label>Measure <select id="measure"><option value="smooth">Trailing 20-winter mean</option><option value="annual">Individual winter average</option></select></label>
+<label class="check"><input id="future" type="checkbox"> Focus on 2015–2100</label></div>
+<p id="chart-context" class="hint"></p>
+<div class="chart-scroll"><svg id="trajectory" viewBox="0 0 1100 590" role="img" aria-labelledby="title1 chart-context"></svg></div>
+<label class="year-control">Inspect winter year <input id="year" type="range" min="1970" max="2100" value="2100"><output id="year-label">2100</output></label>
+<div id="readout" class="readout" aria-live="polite"></div>
+<details><summary>What this chart tells us</summary><p>This graph compares winter temperatures in six places with different climates. Under SSP5-8.5 all six warm in this simulation, but London, Berlin and Sapporo already have positive 20-winter means in 2014, while Beijing, Minneapolis and Montreal remain below zero in that mean through 2100. The lines describe nearby model cells, not city observations.</p></details>
+</section>
+<section aria-labelledby="title2"><div class="section-number">02 / THE DIFFERENCE EMISSIONS MAKE</div><h2 id="title2">Different Emissions, Different Winter Futures</h2><p>Change in mean winter temperature: <strong>2081–2100 minus 1995–2014.</strong> These are increases, not actual temperatures.</p>
+<div class="controls"><label>Order locations <select id="sort"><option value="geographic">Original order</option><option value="gap">Largest scenario difference first</option></select></label></div>
+<div class="legend"><span><i style="background:#187b9d"></i> SSP1-2.6 · lower emissions</span><span><i style="background:#d34b36"></i> SSP5-8.5 · very high emissions</span></div>
+<div class="chart-scroll"><svg id="magnitude" viewBox="0 0 1100 540" role="img" aria-labelledby="title2"></svg></div>
+<p id="comparison" class="readout" aria-live="polite">Hover over or Tab to a location's dots for exact changes and the scenario difference.</p>
+<details><summary>What this chart tells us</summary><p>Every location shows less late-century warming under lower emissions in this simulation. Montreal warms by about 2.5°C under SSP1-2.6 compared with 6.9°C under SSP5-8.5. The gap compares two possible pathways; it does not quantify uncertainty across climate models or guarantee a specific outcome.</p></details>
+</section>
+<footer><h2>Reading the data carefully</h2><p>Winter = December–February, weighted by calendar month length. December belongs to the following winter year. Winter 2015 combines historical December 2014 with scenario January–February 2015. A trailing mean is labeled at its final year: 2100 represents 2081–2100. Early projected means include historical winters.</p><p>The freezing reference is 0°C / 32°F. An average above freezing does not mean freezing days, frost or snow disappear. No future first upward crossing of the trailing 20-winter mean occurs in these six cells during 2015–2100.</p><p>Nearest native grid cells, no bias correction or land masking. Sapporo's coarse coastal cell may poorly represent the city. One model and member cannot quantify model uncertainty. Historical values are shared across scenarios and are drawn once.</p><p><a href="https://pangeo-data.github.io/pangeo-cmip6-cloud/accessing_data.html">Pangeo CMIP6 source documentation</a> · <a href="README.md">Files and reproducibility</a></p></footer>
+</main><div id="tooltip" role="tooltip" hidden></div></body></html>
