@@ -114,6 +114,7 @@
 
     <div id="error-log"></div>
 
+    <!-- CHART 1 -->
     <div class="chart-box">
         <h3>Chart 1: Mid-Latitude Winter Mean Temperature Projections (1850–2100)</h3>
         <div class="controls">
@@ -127,7 +128,17 @@
         <div id="tooltip1" class="tooltip"></div>
     </div>
 
+    <!-- CHART 2 -->
+    <div class="chart-box">
+        <h3>Chart 2: Mid-Latitude Historical Mean Temperature (1850–2014)</h3>
+        <div id="chart2"></div>
+        <div id="tooltip2" class="tooltip"></div>
+    </div>
+
     <script>
+        // ==========================================
+        // CHART 1 SCRIPT
+        // ==========================================
         d3.csv("cmip6_winter_compression.csv").then(rawData => {
             rawData.forEach(d => {
                 d.year = +d.year;
@@ -184,7 +195,7 @@
 
             const plot1 = svg1.append("g").attr("clip-path", "url(#clip1)");
 
-            const thresholdLine = plot1.append("line")
+            plot1.append("line")
                 .attr("x1", 0).attr("x2", width1)
                 .attr("y1", y1(0)).attr("y2", y1(0))
                 .attr("stroke", "#e53e3e")
@@ -302,6 +313,105 @@
         }).catch(err => {
             console.error(err);
             d3.select("#error-log").text("Chart 1 Error: " + err.message);
+        });
+
+
+        // ==========================================
+        // CHART 2 SCRIPT (HISTORICAL BASELINE TREND)
+        // ==========================================
+        d3.csv("cmip6_global_temp_trends.csv").then(rawData => {
+            const historicalData = rawData
+                .filter(d => d.scenario === 'historical')
+                .map(d => ({
+                    year: +d.year,
+                    mean_temp_celsius: +d.mean_temp_celsius
+                }));
+
+            historicalData.sort((a, b) => a.year - b.year);
+
+            const margin2 = { top: 20, right: 30, bottom: 40, left: 60 };
+            const width2 = 800 - margin2.left - margin2.right;
+            const height2 = 380 - margin2.top - margin2.bottom;
+
+            const svg2 = d3.select("#chart2")
+                .append("svg")
+                .attr("width", width2 + margin2.left + margin2.right)
+                .attr("height", height2 + margin2.top + margin2.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin2.left},${margin2.top})`);
+
+            const tooltip2 = d3.select("#tooltip2");
+
+            const x2 = d3.scaleLinear()
+                .domain(d3.extent(historicalData, d => d.year))
+                .range([0, width2]);
+
+            const y2 = d3.scaleLinear()
+                .domain([
+                    d3.min(historicalData, d => d.mean_temp_celsius) - 0.5,
+                    d3.max(historicalData, d => d.mean_temp_celsius) + 0.5
+                ])
+                .range([height2, 0]);
+
+            svg2.append("g")
+                .attr("class", "axis")
+                .attr("transform", `translate(0, ${height2})`)
+                .call(d3.axisBottom(x2).tickFormat(d3.format("d")));
+
+            svg2.append("g")
+                .attr("class", "axis")
+                .call(d3.axisLeft(y2));
+
+            const lineGen2 = d3.line()
+                .x(d => x2(d.year))
+                .y(d => y2(d.mean_temp_celsius))
+                .curve(d3.curveMonotoneX);
+
+            svg2.append("path")
+                .datum(historicalData)
+                .attr("class", "line")
+                .attr("d", lineGen2)
+                .attr("stroke", "#4a5568");
+
+            const focusCircle2 = svg2.append("circle")
+                .attr("r", 5)
+                .attr("class", "focus-circle")
+                .attr("stroke", "#4a5568")
+                .style("opacity", 0);
+
+            svg2.append("rect")
+                .attr("width", width2)
+                .attr("height", height2)
+                .style("fill", "none")
+                .style("pointer-events", "all")
+                .on("mousemove", function (event) {
+                    const [mouseX] = d3.pointer(event);
+                    const hoveredYear = Math.round(x2.invert(mouseX));
+                    const match = historicalData.reduce((prev, curr) =>
+                        Math.abs(curr.year - hoveredYear) < Math.abs(prev.year - hoveredYear) ? curr : prev
+                    );
+
+                    if (match) {
+                        focusCircle2
+                            .attr("cx", x2(match.year))
+                            .attr("cy", y2(match.mean_temp_celsius))
+                            .style("opacity", 1);
+
+                        tooltip2
+                            .style("opacity", 1)
+                            .style("left", `${event.clientX + 15}px`)
+                            .style("top", `${event.clientY - 28}px`)
+                            .html(`<strong>Year:</strong> ${match.year}<br/><strong>Temp:</strong> ${match.mean_temp_celsius.toFixed(2)}°C`);
+                    }
+                })
+                .on("mouseout", function () {
+                    focusCircle2.style("opacity", 0);
+                    tooltip2.style("opacity", 0);
+                });
+
+        }).catch(err => {
+            console.error(err);
+            d3.select("#error-log").text("Chart 2 Error: " + err.message);
         });
     </script>
 </body>
